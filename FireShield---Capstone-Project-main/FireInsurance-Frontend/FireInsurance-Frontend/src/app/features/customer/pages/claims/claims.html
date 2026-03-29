@@ -1,0 +1,551 @@
+<div class="content-container min-h-screen py-8">
+  <!-- Page Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="page-title text-3xl font-bold text-gray-900">My Claims</h1>
+      <p class="text-gray-600 mt-1">Track and manage your insurance claims</p>
+    </div>
+    <button (click)="openFileClaimModal()"
+      class="flex items-center gap-2 px-5 py-2.5 bg-[#C72B32] text-white rounded-lg font-medium hover:bg-[#6A1630] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      [disabled]="activeSubscriptions().length === 0">
+      <span class="material-icons text-xl">report_problem</span>
+      File a Claim
+    </button>
+  </div>
+
+  <!-- Success Message -->
+  @if (successMessage()) {
+  <div class="mb-6 flex items-center gap-3 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">
+    <span class="material-icons text-green-600">check_circle</span>
+    {{ successMessage() }}
+  </div>
+  }
+
+  <!-- Error Message -->
+  @if (errorMessage()) {
+  <div class="mb-6 flex items-center gap-3 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+    <span class="material-icons text-red-600">error</span>
+    {{ errorMessage() }}
+  </div>
+  }
+
+  <!-- Loading State -->
+  @if (isLoading() && claims().length === 0) {
+  <div class="flex items-center justify-center py-16">
+    <div class="w-10 h-10 border-4 border-gray-200 border-t-[#C72B32] rounded-full animate-spin"></div>
+  </div>
+  }
+
+  <!-- No Active Subscriptions Warning -->
+  @if (activeSubscriptions().length === 0 && !isLoading()) {
+  <div class="bg-white rounded-xl shadow-md border border-gray-200 text-center py-16 px-8">
+    <span class="material-icons text-6xl text-gray-300 mb-4 block">policy</span>
+    <h3 class="text-xl font-semibold text-gray-900 mb-2">No Active Policies</h3>
+    <p class="text-gray-500 font-medium mb-6">You need an active policy subscription before filing a claim.</p>
+    <a routerLink="/customer/subscriptions"
+      class="inline-flex items-center gap-2 px-5 py-2.5 bg-[#C72B32] text-white rounded-lg font-medium hover:bg-[#6A1630] transition-colors">
+      <span class="material-icons text-xl">card_membership</span>
+      Subscribe to a Policy
+    </a>
+  </div>
+  }
+
+  <!-- Empty State -->
+  @if (!isLoading() && claims().length === 0 && activeSubscriptions().length > 0) {
+  <div class="bg-white rounded-xl shadow-md border border-gray-200 text-center py-16 px-8">
+    <span class="material-icons text-6xl text-gray-300 mb-4 block">assignment</span>
+    <h3 class="text-xl font-semibold text-gray-900 mb-2">No Claims Filed</h3>
+    <p class="text-gray-500 font-medium mb-6">You haven't filed any claims yet. If you've experienced a loss, file a
+      claim to get started.</p>
+    <button (click)="openFileClaimModal()"
+      class="inline-flex items-center gap-2 px-5 py-2.5 bg-[#C72B32] text-white rounded-lg font-medium hover:bg-[#6A1630] transition-colors">
+      <span class="material-icons text-xl">add</span>
+      File Your First Claim
+    </button>
+  </div>
+  }
+
+  <!-- Claims Table -->
+  @if (claims().length > 0) {
+  <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden mb-6 hidden md:block">
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="bg-gray-50 border-b border-gray-200">
+            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Claim Number
+            </th>
+            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Subscription
+            </th>
+            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
+            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Filed On</th>
+            <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          @for (claim of claims(); track claim.claimId) {
+          <ng-container>
+            <tr class="hover:bg-gray-50 transition-colors">
+              <td class="px-6 py-4 text-sm font-bold text-gray-900">{{ claim.claimNumber || '#CLM-' + claim.claimId }}
+              </td>
+              <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate"
+                [title]="getSubscriptionLabel(claim.subscriptionId)">
+                {{ getSubscriptionLabel(claim.subscriptionId) }}
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex flex-col">
+                  @if (claim.status === 'APPROVED' || claim.status === 'SETTLED' || claim.status === 'PAID') {
+                    <span class="text-sm font-semibold text-green-700">₹{{ (claim.settlementAmount || 0) | number:'1.0-0' }}</span>
+                    <span class="text-xs text-green-600 font-medium">Settlement Amount</span>
+                  } @else {
+                    <span class="text-sm font-semibold text-gray-900">{{ claim.claimAmount | currency:'INR':'symbol' }}</span>
+                    <span class="text-xs text-gray-500 font-medium">Claimed Amount</span>
+                  }
+                  @if (claim.status === 'APPROVED' || claim.status === 'SETTLED') {
+                  <button (click)="openSettlementModal(claim)"
+                    class="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-[#C72B32] hover:text-[#AC254E] transition-colors">
+                    <span class="material-icons text-[14px]">payments</span>
+                    View Payout Breakdown
+                  </button>
+                  }
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <span class="px-2.5 py-1 text-xs font-semibold rounded-full" [ngClass]="getStatusClass(claim.status)">
+                  {{ claim.status.replace('_', ' ') }}
+                </span>
+              </td>
+              <td class="px-6 py-4 text-sm text-gray-600">{{ claim.createdAt | date:'mediumDate' }}</td>
+              <td class="px-6 py-4 text-right">
+                <div class="flex justify-end gap-2">
+                  @if (claim.status === 'SUBMITTED') {
+                  <button (click)="openUploadModal(claim.claimId)"
+                    class="px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md text-sm font-medium transition-colors">Upload
+                    Docs</button>
+                  } @else {
+                  <span class="text-xs text-gray-400">Processed</span>
+                  }
+                </div>
+              </td>
+            </tr>
+          </ng-container>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Claims Cards (Mobile View) -->
+  <div class="space-y-4 md:hidden">
+    @for (claim of claims(); track claim.claimId) {
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+        <h3 class="font-bold text-gray-900">{{ claim.claimNumber || '#CLM-' + claim.claimId }}</h3>
+        <span class="px-2.5 py-1 text-xs font-semibold rounded-full" [ngClass]="getStatusClass(claim.status)">
+          {{ claim.status.replace('_', ' ') }}
+        </span>
+      </div>
+      <div class="p-4 space-y-3">
+        <div>
+          <span class="text-xs font-semibold text-gray-500 uppercase block mb-1">Subscription</span>
+          <span class="text-sm text-gray-800">{{ getSubscriptionLabel(claim.subscriptionId) }}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            @if (claim.status === 'APPROVED' || claim.status === 'SETTLED' || claim.status === 'PAID') {
+              <span class="text-xs font-semibold text-green-600 uppercase block mb-1">Settlement Amount</span>
+              <span class="text-sm font-semibold text-green-700">₹{{ (claim.settlementAmount || 0) | number:'1.0-0' }}</span>
+            } @else {
+              <span class="text-xs font-semibold text-gray-500 uppercase block mb-1">Claim Amount</span>
+              <span class="text-sm font-semibold text-gray-900">{{ claim.claimAmount | currency:'INR':'symbol' }}</span>
+            }
+          </div>
+          <div>
+            <span class="text-xs font-semibold text-gray-500 uppercase block mb-1">Filed On</span>
+            <span class="text-sm text-gray-800">{{ claim.createdAt | date:'mediumDate' }}</span>
+          </div>
+        </div>
+
+        <div>
+          <span class="text-xs font-semibold text-gray-500 uppercase block mb-1">Description</span>
+          <span class="text-sm text-gray-800">{{ claim.description }}</span>
+        </div>
+
+        @if (claim.status === 'APPROVED' || claim.status === 'SETTLED') {
+        <div class="pt-4 mt-2 border-t border-gray-100">
+          <button (click)="openSettlementModal(claim)"
+            class="w-full py-2.5 bg-green-50 text-green-700 hover:bg-green-100 border border-green-100 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all">
+            <span class="material-icons text-[18px]">verified</span>
+            View Payout Summary
+          </button>
+        </div>
+        }
+
+        @if (claim.status === 'SUBMITTED') {
+        <div class="pt-4 mt-2 border-t border-gray-100 flex justify-end">
+          <button (click)="openUploadModal(claim.claimId)"
+            class="px-4 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">Upload
+            Docs</button>
+        </div>
+        }
+      </div>
+    </div>
+    }
+  </div>
+  }
+
+  <!-- File Claim Modal -->
+  @if (showFileClaimModal()) {
+  <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+      <div class="bg-[#C72B32] px-6 py-4 flex items-center justify-between">
+        <h2 class="text-white font-bold text-lg">File a Claim</h2>
+        <button (click)="closeFileClaimModal()" class="text-white/70 hover:text-white"><span
+            class="material-icons">close</span></button>
+      </div>
+
+      @if (!claimIdForUpload()) {
+      <form [formGroup]="fileClaimForm" (ngSubmit)="fileClaim()" class="p-6 overflow-y-auto max-h-[75vh] custom-scrollbar">
+        <div class="space-y-8">
+          <!-- Section 1: Policy & Incident Context -->
+          <div class="space-y-4">
+            <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+              <span class="material-icons text-sm">policy</span>
+              Policy & Incident Context
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Active Subscription *</label>
+                <select formControlName="subscriptionId"
+                  class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#C72B32] focus:bg-white text-sm transition-all"
+                  [class.border-red-500]="isFieldInvalid('subscriptionId')">
+                  <option value="0">Select a subscription</option>
+                  @for (sub of activeSubscriptions(); track sub.subscriptionId) {
+                  <option [value]="sub.subscriptionId">{{ sub.policyName }} — #{{ sub.propertyId }}</option>
+                  }
+                </select>
+                @if (isFieldInvalid('subscriptionId')) {
+                  <p class="text-red-500 text-[10px] font-bold mt-1 text-right">{{ getFieldError('subscriptionId') }}</p>
+                }
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Incident Date *</label>
+                <input type="date" formControlName="incidentDate" [max]="getCurrentDate()"
+                  class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#C72B32] focus:bg-white text-sm transition-all"
+                  [class.border-red-500]="isFieldInvalid('incidentDate')">
+                @if (isFieldInvalid('incidentDate')) {
+                  <p class="text-red-500 text-[10px] font-bold mt-1 text-right">{{ getFieldError('incidentDate') }}</p>
+                }
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Cause of Fire *</label>
+                <select formControlName="causeOfFire"
+                  class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#C72B32] focus:bg-white text-sm transition-all"
+                  [class.border-red-500]="isFieldInvalid('causeOfFire')">
+                  <option value="">Select Cause</option>
+                  <option value="Short Circuit">Electrical Short Circuit</option>
+                  <option value="Kitchen Fire">Kitchen / Cooking Incident</option>
+                  <option value="Accidental">Accidental (Candles/Smoking)</option>
+                  <option value="Natural">Natural (Lightning)</option>
+                  <option value="Unknown">Unknown (Investigation Req.)</option>
+                  <option value="Arson">Third Party Malicious Act</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Loss Category *</label>
+                <select formControlName="lossType"
+                  class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#C72B32] focus:bg-white text-sm transition-all">
+                  <option value="BUILDING">Building Structure Only</option>
+                  <option value="CONTENTS">Household Contents / Stock Only</option>
+                  <option value="BOTH">Building & Contents Combined</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Legal & Reporting Verification -->
+          <div class="space-y-4">
+            <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+              <span class="material-icons text-sm">gavel</span>
+              Legal & Reporting Verification
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Police FIR Number *</label>
+                <input type="text" formControlName="firNumber" placeholder="e.g. FIR/2024/789"
+                  class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#C72B32] focus:bg-white text-sm transition-all"
+                  [class.border-red-500]="isFieldInvalid('firNumber')">
+              </div>
+              
+              <div>
+                <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Police Station Name *</label>
+                <input type="text" formControlName="policeStation" placeholder="Locality of filing"
+                  class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#C72B32] focus:bg-white text-sm transition-all">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Fire Brigade Ref # (Optional)</label>
+                <input type="text" formControlName="fireBrigadeReportNumber" placeholder="Investigation Report ID"
+                  class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#C72B32] focus:bg-white text-sm transition-all">
+              </div>
+              
+              <div>
+                <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Claimant Contact *</label>
+                <input type="text" formControlName="contactPhoneNumber" placeholder="10-digit primary mobile"
+                  class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#C72B32] focus:bg-white text-sm transition-all"
+                  [class.border-red-500]="isFieldInvalid('contactPhoneNumber')">
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: Damage Assessment -->
+          <div class="space-y-4">
+            <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+              <span class="material-icons text-sm">assessment</span>
+              Damage Assessment
+            </h3>
+            
+            <div>
+              <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Estimated Loss Amount (₹) *</label>
+              <div class="relative">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-black">₹</span>
+                <input type="number" formControlName="claimAmount" placeholder="Total projected repair/replacement cost"
+                  class="w-full pl-9 pr-4 py-3 bg-white border-2 border-gray-100 rounded-2xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 text-lg font-black transition-all"
+                  [class.border-red-500]="isFieldInvalid('claimAmount')">
+              </div>
+              @if (isFieldInvalid('claimAmount')) {
+                <p class="text-red-500 text-[10px] font-bold mt-1 text-right">{{ getFieldError('claimAmount') }}</p>
+              }
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Event Description & Witness Details *</label>
+              <textarea formControlName="description" rows="3"
+                placeholder="Briefly explain WHAT happened and WHEN..."
+                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-red-500 focus:bg-white text-sm transition-all resize-none mb-3"
+                [class.border-red-500]="isFieldInvalid('description')"></textarea>
+              
+              <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5 italic">Third Party Witness Details (Optional)</label>
+              <textarea formControlName="witnessDetails" rows="2"
+                placeholder="Names and contact info of witnesses present at the scene..."
+                class="w-full px-4 py-3 bg-gray-50 border border-dashed border-gray-300 rounded-2xl focus:ring-2 focus:ring-gray-400 focus:bg-white text-xs transition-all resize-none italic"></textarea>
+            </div>
+
+            <div class="p-4 bg-amber-50 rounded-2xl border border-amber-200 flex gap-3">
+              <span class="material-icons text-amber-600 shrink-0 text-lg">policy</span>
+              <p class="text-[10px] text-amber-900 leading-relaxed">
+                <strong>Legal Statment:</strong> I declare that the above statements are true to the best of my knowledge. Underwriting rules and fraud detection algorithms will verify FIR and brigade records. Providing false information is a punishable offense under the Insurance Act.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-8 flex items-center justify-between pt-6 border-t border-gray-100">
+          <button type="button" (click)="closeFileClaimModal()"
+            class="px-6 py-2.5 text-gray-500 font-bold text-xs uppercase tracking-widest hover:text-gray-900 transition-colors"
+            [disabled]="isLoading()">Discard</button>
+          
+          <button type="submit"
+            class="flex items-center gap-2 px-8 py-3 bg-gray-900 hover:bg-black text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-gray-200 transition-all disabled:opacity-50 hover:-translate-y-0.5"
+            [disabled]="isLoading() || fileClaimForm.invalid">
+            @if (isLoading()) { <span class="material-icons animate-spin text-sm">refresh</span> }
+            {{ isLoading() ? 'Processing...' : 'Submit Claim' }}
+          </button>
+        </div>
+      </form>
+      } @else {
+      <div class="p-6">
+        <div class="mb-6 px-4 py-3 bg-green-50 text-green-800 rounded-lg border border-green-200 flex gap-3">
+          <span class="material-icons text-green-600 shrink-0 mt-0.5">check_circle</span>
+          <p class="text-sm"><strong>Application Saved!</strong><br>Please upload any essential supporting documents
+            such as incident photos, police reports, or fire brigade reports. These are required to approve your claim.
+          </p>
+        </div>
+
+        <div class="w-full">
+          <app-claim-document-upload [claimId]="claimIdForUpload()!"></app-claim-document-upload>
+        </div>
+
+        <div class="mt-8 flex justify-end pt-5 border-t border-gray-100">
+          <button type="button" (click)="closeFileClaimModal()"
+            class="px-6 py-2.5 bg-[#C72B32] hover:bg-[#6A1630] text-white rounded-lg font-medium shadow-sm transition-colors">Done</button>
+        </div>
+      </div>
+      }
+    </div>
+  </div>
+  }
+  <!-- Settlement Breakdown Modal -->
+  @if (selectedClaimForSettlement()) {
+  <div class="fixed inset-0 bg-black/70 backdrop-blur-[8px] z-50 flex items-center justify-center p-4 overflow-y-auto"
+    (click)="closeSettlementModal()">
+    <div
+      class="bg-white relative w-full max-w-lg rounded-[2.5rem] shadow-[0_25px_70px_rgba(0,0,0,0.4)] border border-gray-100 overflow-hidden"
+      (click)="$event.stopPropagation()">
+
+      <!-- Premium Header Area -->
+      <div class="bg-gradient-to-br from-[#C72B32] to-[#5A1329] p-10 text-white relative">
+        <!-- Glassmorphic Decorative Circles -->
+        <div class="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-10 -left-10 w-32 h-32 bg-[#A0214F]/30 rounded-full blur-2xl"></div>
+
+        <div class="relative z-10">
+          <div class="flex items-center justify-between mb-6">
+            <div
+              class="px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
+              <span class="material-icons text-xs">verified</span>
+              <span class="text-[10px] font-black uppercase tracking-[0.2em]">Settlement Verified</span>
+            </div>
+            <button (click)="closeSettlementModal()"
+              class="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/10 hover:bg-white/20 text-white transition-all group">
+              <span class="material-icons group-hover:rotate-90 transition-transform">close</span>
+            </button>
+          </div>
+
+          <h2 class="text-4xl font-black tracking-tight mb-2">Claim Review</h2>
+          <div class="flex items-center gap-2 opacity-70">
+            <span class="text-xs font-bold font-mono">ID: #CLM-{{ selectedClaimForSettlement()!.claimId }}</span>
+            <span class="w-1 h-1 bg-white rounded-full"></span>
+            <span class="text-xs font-bold">{{ selectedClaimForSettlement()!.createdAt | date:'mediumDate' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Breakdown -->
+      <div class="p-10 space-y-8 bg-white">
+
+        <!-- Summary Header -->
+        <div class="space-y-1">
+          <h3 class="text-xl font-black text-gray-900">Payment Breakdown</h3>
+          <p class="text-sm text-gray-500 font-medium">A detailed view of how your final settlement was calculated.</p>
+        </div>
+
+        <!-- Step-by-Step Breakdown -->
+        <div class="space-y-4">
+
+          <!-- 1. Initial Claim -->
+          <div class="flex items-center justify-between p-5 rounded-3xl bg-gray-50/50 border border-gray-100">
+            <div class="flex items-center gap-4">
+              <div
+                class="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-gray-400 border border-gray-100">
+                <span class="material-icons">receipt_long</span>
+              </div>
+              <div>
+                <span class="block text-[10px] font-black text-gray-400 uppercase tracking-wider">Requested</span>
+                <span class="block font-bold text-gray-600">Initial Claim Amount</span>
+              </div>
+            </div>
+            <span class="text-lg font-bold text-gray-500 line-through">₹{{ selectedClaimForSettlement()!.claimAmount |
+              number:'1.0-0' }}</span>
+          </div>
+
+          <!-- 2. Surveyor Valuation -->
+          <div class="flex items-center justify-between p-5 rounded-3xl bg-fire-cream/30 border border-fire-red/20">
+            <div class="flex items-center gap-4">
+              <div
+                class="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-fire-red border border-fire-red/20">
+                <span class="material-icons">architecture</span>
+              </div>
+              <div>
+                <span class="block text-[10px] font-black text-fire-red/60 uppercase tracking-wider">Evaluated</span>
+                <span class="block font-bold text-gray-900">Surveyor Assessment</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="block text-lg font-black text-gray-900">₹{{ (selectedClaimForSettlement()!.estimatedLoss || 0) |
+                number:'1.0-0' }}</span>
+              @if ((selectedClaimForSettlement()!.claimAmount || 0) > (selectedClaimForSettlement()!.estimatedLoss || 0)) {
+              <span class="text-[10px] font-bold text-red-500">-₹{{ ((selectedClaimForSettlement()!.claimAmount || 0) -
+                (selectedClaimForSettlement()!.estimatedLoss || 0)) | number:'1.0-0' }} Adjustment</span>
+              }
+            </div>
+          </div>
+
+          <!-- Divider Line -->
+          <div class="relative py-2">
+            <div class="absolute inset-0 flex items-center">
+              <div class="w-full border-t border-dashed border-gray-200"></div>
+            </div>
+            <div
+              class="relative flex justify-center text-[10px] font-bold uppercase tracking-widest text-gray-400 bg-white px-4">
+              Policy Deductions</div>
+          </div>
+
+          <!-- 3. Deductible & Depreciation -->
+          <div class="grid grid-cols-1 gap-3">
+            <!-- Deductible Item -->
+            <div class="flex items-center justify-between px-5 py-4 rounded-2xl border border-gray-100 italic">
+              <div class="flex items-center gap-3">
+                <span class="material-icons text-sm text-red-400">remove_circle_outline</span>
+                <span class="text-sm font-bold text-gray-500">Policy Deductible</span>
+              </div>
+              <span class="text-sm font-black text-red-600">-₹{{ (selectedClaimForSettlement()!.deductible || 0) |
+                number:'1.0-0' }}</span>
+            </div>
+
+            <!-- Depreciation Item -->
+            <div class="flex items-center justify-between px-5 py-4 rounded-2xl border border-gray-100 italic">
+              <div class="flex items-center gap-3">
+                <span class="material-icons text-sm text-red-400">history</span>
+                <span class="text-sm font-bold text-gray-500">Depreciation Factor</span>
+              </div>
+              <span class="text-sm font-black text-red-600">-₹{{ (selectedClaimForSettlement()!.depreciation || 0) |
+                number:'1.0-0' }}</span>
+            </div>
+          </div>
+
+          <!-- Final Result Highlight -->
+          <div class="mt-8 relative pt-6">
+            <div
+              class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-6 py-2 bg-[#C72B32] text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-full shadow-lg shadow-[#C72B32]/20">
+              Final Payout
+            </div>
+
+            <div
+              class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-[2.5rem] border-2 border-green-200 p-8 flex flex-col items-center">
+              <div class="text-6xl font-black text-green-900 tracking-tighter flex items-start gap-1">
+                <span class="text-2xl mt-2 font-light">₹</span>
+                <span>{{ (selectedClaimForSettlement()!.settlementAmount || 0) | number:'1.0-0' }}</span>
+              </div>
+
+              @if ((selectedClaimForSettlement()!.estimatedLoss || 0) > 0 &&
+              ((selectedClaimForSettlement()!.estimatedLoss || 0) - (selectedClaimForSettlement()!.deductible || 0) -
+              (selectedClaimForSettlement()!.depreciation || 0)) > (selectedClaimForSettlement()!.settlementAmount || 0)) {
+              <div
+                class="mt-6 flex items-center gap-2 bg-green-200/50 px-5 py-2.5 rounded-2xl border border-green-300 animate-pulse">
+                <span class="material-icons text-green-800 text-[18px]">gpp_maybe</span>
+                <span class="text-xs font-black text-green-900 uppercase">Capped by Max Policy Coverage</span>
+              </div>
+              <p class="text-[10px] text-green-700/60 mt-2 font-bold italic text-center">Your loss calculation exceeded
+                the maximum payout limit of your signed policy.</p>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Trust Bar -->
+      <div class="px-10 py-8 bg-gray-50 flex items-center justify-between border-t border-gray-100">
+        <div class="flex items-center gap-3 grayscale opacity-30">
+          <span class="material-icons text-2xl">verified</span>
+          <span class="text-[9px] font-black uppercase tracking-widest w-24 leading-tight">FireShield Certified
+            Settlement</span>
+        </div>
+        <button (click)="closeSettlementModal()"
+          class="px-10 py-4 bg-gray-900 text-white font-black rounded-2xl hover:bg-black transition-all shadow-xl hover:-translate-y-1 active:translate-y-0 text-sm">
+          Close Report
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+</div>
