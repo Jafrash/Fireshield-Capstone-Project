@@ -56,6 +56,8 @@ export interface SiuClaimDetails {
     policyType: string;
     maxCoverageAmount: number;
     deductible: number;
+    fireShieldProtection?: boolean;
+    firePreventionDiscount?: boolean;
   };
 
   // Property information
@@ -162,5 +164,19 @@ export class SiuService {
       notes: notes || 'Claim cleared as legitimate by SIU investigation'
     };
     return this.http.post<SiuInvestigationActionResponse>(`${this.apiUrl}/clear-claim`, request);
+  }
+
+  /**
+   * Trigger the backend AI Smart Scan
+   */
+  runSmartScan(claimId: string): Observable<{ analysis: string }> {
+    return this.http.post<{ analysis: string }>(`${this.apiUrl}/claims/${claimId}/smart-scan`, {});
+  }
+
+  /**
+   * Get the audit trail for a claim
+   */
+  getAuditLogs(claimId: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/claims/${claimId}/audit-logs`);
   }
 }

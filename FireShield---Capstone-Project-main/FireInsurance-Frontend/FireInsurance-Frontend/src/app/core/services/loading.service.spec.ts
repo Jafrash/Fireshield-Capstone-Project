@@ -1,3 +1,10 @@
+import 'zone.js';
+import 'zone.js/testing';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach as vitestAfterEach } from 'vitest';
+vitestAfterEach(() => { getTestBed().resetTestingModule(); });
+import { getTestBed } from '@angular/core/testing';
+
 import { TestBed } from '@angular/core/testing';
 import { LoadingService } from './loading.service';
 
@@ -14,35 +21,35 @@ describe('LoadingService', () => {
   });
 
   it('should start with isLoading false', () => {
-    expect(service.isLoading()).toBeFalse();
+    expect(service.isLoading()).toBe(false);
     expect(service.getActiveRequestCount()).toBe(0);
   });
 
   it('should set isLoading to true when show is called', () => {
     service.show();
-    expect(service.isLoading()).toBeTrue();
+    expect(service.isLoading()).toBe(true);
     expect(service.getActiveRequestCount()).toBe(1);
   });
 
   it('should set isLoading to false when hide is called after show', () => {
     service.show();
     service.hide();
-    expect(service.isLoading()).toBeFalse();
+    expect(service.isLoading()).toBe(false);
     expect(service.getActiveRequestCount()).toBe(0);
   });
 
   it('should handle multiple shows and hides', () => {
     service.show();
     service.show();
-    expect(service.isLoading()).toBeTrue();
+    expect(service.isLoading()).toBe(true);
     expect(service.getActiveRequestCount()).toBe(2);
 
     service.hide();
-    expect(service.isLoading()).toBeTrue();
+    expect(service.isLoading()).toBe(true);
     expect(service.getActiveRequestCount()).toBe(1);
 
     service.hide();
-    expect(service.isLoading()).toBeFalse();
+    expect(service.isLoading()).toBe(false);
     expect(service.getActiveRequestCount()).toBe(0);
   });
 
@@ -50,7 +57,7 @@ describe('LoadingService', () => {
     service.show();
     service.show();
     service.forceHide();
-    expect(service.isLoading()).toBeFalse();
+    expect(service.isLoading()).toBe(false);
     expect(service.getActiveRequestCount()).toBe(0);
   });
 });

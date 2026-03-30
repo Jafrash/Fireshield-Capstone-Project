@@ -1,4 +1,10 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import 'zone.js';
+import 'zone.js/testing';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach as vitestAfterEach } from 'vitest';
+vitestAfterEach(() => { getTestBed().resetTestingModule(); });
+
+import { ComponentFixture, getTestBed, TestBed } from '@angular/core/testing';
 import { UnauthorizedComponent } from './unauthorized';
 import { AuthService } from '../../../../core/services';
 import { Router } from '@angular/router';
@@ -6,12 +12,15 @@ import { Router } from '@angular/router';
 describe('UnauthorizedComponent', () => {
   let component: UnauthorizedComponent;
   let fixture: ComponentFixture<UnauthorizedComponent>;
-  let mockAuthService: jasmine.SpyObj<AuthService>;
-  let mockRouter: jasmine.SpyObj<Router>;
+  let mockAuthService: any;
+  let mockRouter: any;
 
   beforeEach(async () => {
-    mockAuthService = jasmine.createSpyObj('AuthService', ['redirectToDashboard', 'logout']);
-    mockRouter = jasmine.createSpyObj('Router', ['navigate']);
+    mockAuthService = {
+      redirectToDashboard: vi.fn(),
+      logout: vi.fn()
+    };
+    mockRouter = { navigate: vi.fn(), navigateByUrl: vi.fn(), parseUrl: vi.fn(), createUrlTree: vi.fn() };
 
     await TestBed.configureTestingModule({
       imports: [UnauthorizedComponent],

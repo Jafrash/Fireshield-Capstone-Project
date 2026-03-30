@@ -1,4 +1,10 @@
-import { TestBed } from '@angular/core/testing';
+import 'zone.js';
+import 'zone.js/testing';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach as vitestAfterEach } from 'vitest';
+vitestAfterEach(() => { getTestBed().resetTestingModule(); });
+
+import { getTestBed, TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { AdminService, Surveyor } from './admin.service';
@@ -76,5 +82,35 @@ describe('AdminService', () => {
     const req = httpTestingController.expectOne(`${baseUrl}/inspections`);
     expect(req.request.method).toBe('GET');
     req.flush([]);
+  });
+
+  it('should get dashboard stats', () => {
+    service.getDashboardStats().subscribe();
+    const req = httpTestingController.expectOne(`${baseUrl}/admin/dashboard/stats`);
+    expect(req.request.method).toBe('GET');
+    req.flush({ totalCustomers: 10, totalClaims: 5, activePolicies: 3 });
+  });
+
+  it('should assign underwriter to claim', () => {
+    service.assignUnderwriterToClaim(1, 2).subscribe();
+    const req = httpTestingController.expectOne(`${baseUrl}/admin/assign-underwriter/claim`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ targetId: 1, underwriterId: 2 });
+    req.flush('Success');
+  });
+
+  it('should assign SIU to claim', () => {
+    service.assignSiuToClaim(1, 3).subscribe();
+    const req = httpTestingController.expectOne(`${baseUrl}/admin/assign-siu`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ claimId: 1, investigatorId: 3 });
+    req.flush('Success');
+  });
+
+  it('should get fraud analysis', () => {
+    service.getFraudAnalysis(1).subscribe();
+    const req = httpTestingController.expectOne(`${baseUrl}/fraud/analysis/1`);
+    expect(req.request.method).toBe('GET');
+    req.flush({});
   });
 });

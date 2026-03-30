@@ -1,3 +1,9 @@
+import 'zone.js';
+import 'zone.js/testing';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach as vitestAfterEach } from 'vitest';
+vitestAfterEach(() => { TestBed.resetTestingModule(); });
+
 import { TestBed } from '@angular/core/testing';
 import { HttpClient, provideHttpClient, withInterceptors, HttpErrorResponse } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -8,12 +14,16 @@ import { Router } from '@angular/router';
 describe('authInterceptor', () => {
   let httpClient: HttpClient;
   let httpTestingController: HttpTestingController;
-  let mockTokenService: jasmine.SpyObj<TokenService>;
-  let mockRouter: jasmine.SpyObj<Router>;
+  let mockTokenService: any;
+  let mockRouter: any;
 
   beforeEach(() => {
-    mockTokenService = jasmine.createSpyObj('TokenService', ['getToken', 'isTokenExpired', 'clearAuth']);
-    mockRouter = jasmine.createSpyObj('Router', ['navigate']);
+    mockTokenService = {
+      getToken: vi.fn(),
+      isTokenExpired: vi.fn(),
+      clearAuth: vi.fn()
+    };
+    mockRouter = { navigate: vi.fn(), navigateByUrl: vi.fn(), parseUrl: vi.fn(), createUrlTree: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
@@ -33,10 +43,10 @@ describe('authInterceptor', () => {
   });
 
   it('should add Authorization header for regular requests', () => {
-    mockTokenService.getToken.and.returnValue('test-token');
-    mockTokenService.isTokenExpired.and.returnValue(false);
+    mockTokenService.getToken.mockReturnValue('test-token');
+    mockTokenService.isTokenExpired.mockReturnValue(false);
 
-    httpClient.get('/api/data').subscribe();
+    httpClient.post('/api/data', {}).subscribe();
 
     const req = httpTestingController.expectOne('/api/data');
     expect(req.request.headers.get('Authorization')).toBe('Bearer test-token');
@@ -44,8 +54,8 @@ describe('authInterceptor', () => {
   });
 
   it('should NOT add Content-Type header for FormData requests', () => {
-    mockTokenService.getToken.and.returnValue('test-token');
-    mockTokenService.isTokenExpired.and.returnValue(false);
+    mockTokenService.getToken.mockReturnValue('test-token');
+    mockTokenService.isTokenExpired.mockReturnValue(false);
 
     const formData = new FormData();
     formData.append('file', new Blob([''], { type: 'text/plain' }));
@@ -54,35 +64,35 @@ describe('authInterceptor', () => {
 
     const req = httpTestingController.expectOne('/api/upload');
     expect(req.request.headers.get('Authorization')).toBe('Bearer test-token');
-    expect(req.request.headers.has('Content-Type')).toBeFalse();
+    expect(req.request.headers.has('Content-Type')).toBe(false);
   });
 
   it('should skip auth for login and register endpoints', () => {
     httpClient.post('/auth/login', {}).subscribe();
     const req1 = httpTestingController.expectOne('/auth/login');
-    expect(req1.request.headers.has('Authorization')).toBeFalse();
+    expect(req1.request.headers.has('Authorization')).toBe(false);
 
     httpClient.post('/auth/register', {}).subscribe();
     const req2 = httpTestingController.expectOne('/auth/register');
-    expect(req2.request.headers.has('Authorization')).toBeFalse();
+    expect(req2.request.headers.has('Authorization')).toBe(false);
   });
 
   it('should redirect to login if token is expired', () => {
-    mockTokenService.getToken.and.returnValue('expired-token');
-    mockTokenService.isTokenExpired.and.returnValue(true);
+    mockTokenService.getToken.mockReturnValue('expired-token');
+    mockTokenService.isTokenExpired.mockReturnValue(true);
 
     httpClient.get('/api/data').subscribe({
       error: (err) => expect(err.message).toBe('Token expired')
     });
 
     expect(mockTokenService.clearAuth).toHaveBeenCalled();
-    expect(mockRouter.navigate).toHaveBeenCalledWith(['/auth/login'], jasmine.any(Object));
+    expect(mockRouter.navigate).toHaveBeenCalledWith(['/auth/login'], expect.any(Object));
     httpTestingController.expectNone('/api/data');
   });
 
   it('should handle 401 error and redirect to login if request was authenticated', () => {
-    mockTokenService.getToken.and.returnValue('valid-token');
-    mockTokenService.isTokenExpired.and.returnValue(false);
+    mockTokenService.getToken.mockReturnValue('valid-token');
+    mockTokenService.isTokenExpired.mockReturnValue(false);
 
     httpClient.get('/api/data').subscribe({
       error: (err) => expect(err.status).toBe(401)
@@ -92,6 +102,6 @@ describe('authInterceptor', () => {
     req.flush('Unauthorized', { status: 401, statusText: 'Unauthorized' });
 
     expect(mockTokenService.clearAuth).toHaveBeenCalled();
-    expect(mockRouter.navigate).toHaveBeenCalledWith(['/auth/login'], jasmine.any(Object));
+    expect(mockRouter.navigate).toHaveBeenCalledWith(['/auth/login'], expect.any(Object));
   });
 });

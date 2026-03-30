@@ -12,7 +12,7 @@ export interface FraudRule {
 
 export interface FraudAnalysisResult {
   totalScore: number;
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  fraudLevel: 'LOW' | 'MEDIUM' | 'HIGH';
   triggeredRules: FraudRule[];
   allRules: FraudRule[];
   analysisTimestamp: Date;
@@ -67,7 +67,7 @@ export class FraudEngineService {
 
     return {
       totalScore,
-      riskLevel: this.getRiskLevel(totalScore),
+      fraudLevel: this.getFraudLevel(totalScore),
       triggeredRules: rules.filter(r => r.isTriggered),
       allRules: rules,
       analysisTimestamp: new Date()
@@ -102,7 +102,7 @@ export class FraudEngineService {
       },
       {
         id: 'BEHAVIORAL_PATTERN',
-        name: 'Linguistic Risk Pattern',
+        name: 'Linguistic Fraud Pattern',
         description: 'Description contains multiple keywords typically associated with fraudulent reporting.',
         impactScore: 10,
         severity: 'LOW',
@@ -125,7 +125,7 @@ export class FraudEngineService {
     );
   }
 
-  private getRiskLevel(score: number): 'LOW' | 'MEDIUM' | 'HIGH' {
+  private getFraudLevel(score: number): 'LOW' | 'MEDIUM' | 'HIGH' {
     if (score >= 70) return 'HIGH';
     if (score >= 35) return 'MEDIUM';
     return 'LOW';

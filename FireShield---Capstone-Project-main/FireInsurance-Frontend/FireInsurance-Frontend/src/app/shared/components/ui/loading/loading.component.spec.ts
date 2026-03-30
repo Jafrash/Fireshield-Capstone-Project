@@ -1,3 +1,10 @@
+import 'zone.js';
+import 'zone.js/testing';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach as vitestAfterEach } from 'vitest';
+vitestAfterEach(() => { getTestBed().resetTestingModule(); });
+import { getTestBed } from '@angular/core/testing';
+
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { LoadingComponent } from './loading.component';
 import { LoadingService } from '../../../../core/services/loading.service';

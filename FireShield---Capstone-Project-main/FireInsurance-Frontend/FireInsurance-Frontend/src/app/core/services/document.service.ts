@@ -96,5 +96,21 @@ export class DocumentService {
   downloadDocument(documentId: number): Observable<Blob> {
     return this.http.get(`${this.apiUrl}/download/${documentId}`, { responseType: 'blob' });
   }
+
+  getMissingDocuments(subscriptionId: number): Observable<any> {
+    return this.http.get(`${this.apiUrl}/missing/${subscriptionId}`);
+  }
+
+  getUploadedDocuments(subscriptionId: number): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/uploaded/${subscriptionId}`);
+  }
+
+  updateDocumentValidation(subscriptionId: number, documentId: number, status: any): Observable<any> {
+    return this.http.put(`${this.apiUrl}/subscription/${subscriptionId}/document/${documentId}/validate`, status);
+  }
+
+  addIssueLog(subscriptionId: number, documentId: number, message: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/subscription/${subscriptionId}/document/${documentId}/issue`, message);
+  }
 }
 

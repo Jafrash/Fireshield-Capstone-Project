@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { Location } from '@angular/common';
 import { SiuService, SiuClaimDetails, SiuInvestigationActionResponse } from '../../services/siu.service';
-import { FraudEngineService, FraudAnalysisResult } from '../../services/fraud-engine.service';
 import { DocumentService } from '../../../../core/services/document.service';
 import { HttpErrorResponse } from '@angular/common/http';
 
@@ -15,7 +14,6 @@ import { HttpErrorResponse } from '@angular/common/http';
 })
 export class SiuClaimDetailsComponent implements OnInit {
   private readonly siuService = inject(SiuService);
-  private readonly fraudEngine = inject(FraudEngineService);
   private readonly documentService = inject(DocumentService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -29,18 +27,20 @@ export class SiuClaimDetailsComponent implements OnInit {
 
   // Analysis state
   isAnalyzing = signal(false);
-  analysisResult = signal<FraudAnalysisResult | null>(null);
+  aiReasoning = signal<string | null>(null);
+  auditLogs = signal<any[]>([]);
   documents = signal<any[]>([]);
 
   // Investigation action loading states
   isStartingInvestigation = signal(false);
   isMarkingFraud = signal(false);
   isClearingClaim = signal(false);
+  isLoadingLogs = signal(false);
   actionMessage = signal('');
   actionSuccess = signal<boolean | null>(null);
 
   // Computed properties
-  fraudRiskLevel = computed(() => {
+  fraudSeverityLevel = computed(() => {
     const claim = this.claimDetails();
     if (!claim || typeof claim.fraudScore !== 'number') return 'unknown';
 
@@ -93,39 +93,31 @@ export class SiuClaimDetailsComponent implements OnInit {
     const claim = this.claimDetails();
     if (!claim || !claim.status) return false;
 
-    // Can start investigation if claim is submitted, under review, or survey completed
-    const validStatuses = ['SUBMITTED', 'UNDER_REVIEW', 'SURVEY_COMPLETED'];
-    return validStatuses.includes(claim.status.toUpperCase()) &&
+    // Can start investigation if claim is submitted, or in a generic triage state
+    const validStatuses = ['SUBMITTED', 'UNDER_REVIEW', 'SURVEY_COMPLETED', 'SURVEY_ASSIGNED', 'PENDING_REVIEW'];
+    return (validStatuses.includes(claim.status.toUpperCase()) || !claim.status.startsWith('SIU_')) &&
            !this.isStartingInvestigation() &&
            !this.isPerformingAnyAction();
   });
 
   canMarkAsFraud = computed(() => {
     const claim = this.claimDetails();
-    const result = this.analysisResult();
-    if (!claim || !claim.status || !result) return false;
+    if (!claim || !claim.status) return false;
  
-    // Must have a HIGH risk score (>= 70) to mark as fraud
-    const isHighRisk = result.totalScore >= 70;
- 
-    const validStatuses = ['UNDER_REVIEW', 'SURVEY_COMPLETED', 'SURVEY_ASSIGNED'];
+    // Actionable statuses for confirming fraud
+    const validStatuses = ['SIU_UNDER_REVIEW', 'UNDER_REVIEW', 'SUBMITTED', 'SURVEY_COMPLETED', 'SURVEY_ASSIGNED', 'PENDING_REVIEW'];
     return validStatuses.includes(claim.status.toUpperCase()) &&
-           isHighRisk &&
            !this.isMarkingFraud() &&
            !this.isPerformingAnyAction();
   });
 
   canClearClaim = computed(() => {
     const claim = this.claimDetails();
-    const result = this.analysisResult();
-    if (!claim || !claim.status || !result) return false;
+    if (!claim || !claim.status) return false;
  
-    // Must have a LOW or MEDIUM risk score (< 70) to clear claim
-    const isLowMediumRisk = result.totalScore < 70;
- 
-    const validStatuses = ['UNDER_REVIEW', 'SURVEY_COMPLETED', 'SURVEY_ASSIGNED', 'SUBMITTED'];
+    // Actionable statuses for clearing claims
+    const validStatuses = ['SIU_UNDER_REVIEW', 'UNDER_REVIEW', 'SUBMITTED', 'SURVEY_COMPLETED', 'SURVEY_ASSIGNED', 'PENDING_REVIEW'];
     return validStatuses.includes(claim.status.toUpperCase()) &&
-           isLowMediumRisk &&
            !this.isClearingClaim() &&
            !this.isPerformingAnyAction();
   });
@@ -165,6 +157,7 @@ export class SiuClaimDetailsComponent implements OnInit {
       this.claimId.set(claimId);
       this.loadClaimDetails(claimId);
       this.loadDocuments(claimId);
+      this.loadAuditLogs(claimId);
     } else {
       this.errorMessage.set('No claim ID provided in route');
       this.isLoading.set(false);
@@ -182,13 +175,12 @@ export class SiuClaimDetailsComponent implements OnInit {
       next: (claimDetails: SiuClaimDetails) => {
         // Check if backend returned placeholder response
         if ((claimDetails as any).message && (claimDetails as any).message.includes('Implementation pending')) {
-          this.errorMessage.set('Backend claim details endpoint is not yet implemented. Please implement the SIU claim details API endpoint.');
+          this.errorMessage.set('Backend claim details endpoint is not yet implemented.');
           this.claimDetails.set(null);
         } else {
           this.claimDetails.set(claimDetails);
         }
         this.isLoading.set(false);
-        console.log('Claim details loaded:', claimDetails);
       },
       error: (error: HttpErrorResponse) => {
         console.error('Error loading claim details:', error);
@@ -199,36 +191,54 @@ export class SiuClaimDetailsComponent implements OnInit {
   }
 
   /**
-   * Load documents associated with this claim for cross-validation
+   * Load Audit Trail for the claim
    */
-  private loadDocuments(claimId: string): void {
-    this.documentService.getDocumentsForEntity(Number(claimId), 'CLAIM').subscribe({
-      next: (docs) => this.documents.set(docs || []),
-      error: (err) => console.error('Failed to load documents for fraud analysis', err)
+  loadAuditLogs(claimId: string): void {
+    this.isLoadingLogs.set(true);
+    this.siuService.getAuditLogs(claimId).subscribe({
+      next: (logs) => {
+        this.auditLogs.set(logs);
+        this.isLoadingLogs.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load audit logs', err);
+        this.isLoadingLogs.set(false);
+      }
     });
   }
 
   /**
-   * Executes the AI-Inspired Smart Scan via the Fraud Engine
+   * Load documents associated with this claim
+   */
+  private loadDocuments(claimId: string): void {
+    this.documentService.getDocumentsForEntity(Number(claimId), 'CLAIM').subscribe({
+      next: (docs) => this.documents.set(docs || []),
+      error: (err) => console.error('Failed to load documents', err)
+    });
+  }
+
+  /**
+   * Executes the REAL AI Smart Scan via backend
    */
   runSmartScan(): void {
-    const claim = this.claimDetails();
-    if (!claim) return;
+    const claimId = this.claimId();
+    if (!claimId) return;
 
     this.isAnalyzing.set(true);
-    this.analysisResult.set(null);
+    this.aiReasoning.set(null);
 
-    // Simulate "Deep Analysis" processing time for better UX
-    setTimeout(() => {
-      const result = this.fraudEngine.analyzeClaim(claim, this.documents());
-      this.analysisResult.set(result);
-      this.isAnalyzing.set(false);
-      
-      // If score is high, optionally update local fraudScore for UI consistency
-      if (result.totalScore > (claim.fraudScore || 0)) {
-        this.claimDetails.set({ ...claim, fraudScore: result.totalScore });
+    this.siuService.runSmartScan(claimId).subscribe({
+      next: (response) => {
+        this.aiReasoning.set(response.analysis);
+        this.isAnalyzing.set(false);
+        this.loadAuditLogs(claimId); // Refresh logs to show scan event
+      },
+      error: (error) => {
+        console.error('Smart Scan failed:', error);
+        this.isAnalyzing.set(false);
+        this.aiReasoning.set('Failed to perform AI Smart Scan. Check server logs.');
       }
-    }, 1500);
+    });
   }
 
   /**
@@ -255,10 +265,10 @@ export class SiuClaimDetailsComponent implements OnInit {
   }
 
   /**
-   * Get CSS class for fraud risk level
+   * Get CSS class for fraud severity level
    */
-  getFraudRiskClass(): string {
-    const level = this.fraudRiskLevel();
+  getFraudSeverityClass(): string {
+    const level = this.fraudSeverityLevel();
     switch (level) {
       case 'high': return 'bg-red-100 text-red-800 border-red-200';
       case 'medium': return 'bg-orange-100 text-orange-800 border-orange-200';
@@ -324,9 +334,8 @@ export class SiuClaimDetailsComponent implements OnInit {
 
     this.siuService.updateClaimStatus(claimId, newStatus).subscribe({
       next: () => {
-        console.log('Claim status updated:', claimId, newStatus);
-        // Reload claim details to get updated information
         this.loadClaimDetails(claimId);
+        this.loadAuditLogs(claimId);
       },
       error: (error) => {
         console.error('Error updating claim status:', error);
@@ -349,13 +358,11 @@ export class SiuClaimDetailsComponent implements OnInit {
 
     this.siuService.startInvestigation(claimId, 'Formal SIU investigation initiated').subscribe({
       next: (response: SiuInvestigationActionResponse) => {
-        console.log('Investigation started:', response);
         this.handleActionSuccess(response, 'Investigation started successfully');
-        // Reload claim details to show updated status
         this.loadClaimDetails(claimId);
+        this.loadAuditLogs(claimId);
       },
       error: (error: HttpErrorResponse) => {
-        console.error('Error starting investigation:', error);
         this.handleActionError('Failed to start investigation', error);
       },
       complete: () => {
@@ -372,20 +379,18 @@ export class SiuClaimDetailsComponent implements OnInit {
     if (!claimId || !this.canMarkAsFraud()) return;
 
     const claim = this.claimDetails();
-    const reason = `Fraudulent claim confirmed. Fraud score: ${claim?.fraudScore}%. Suspicious indicators detected.`;
+    const reason = `Fraudulent claim confirmed. Fraud score: ${claim?.fraudScore}%.`;
 
     this.clearActionMessages();
     this.isMarkingFraud.set(true);
 
     this.siuService.markAsFraud(claimId, reason).subscribe({
       next: (response: SiuInvestigationActionResponse) => {
-        console.log('Claim marked as fraud:', response);
         this.handleActionSuccess(response, 'Claim successfully marked as fraudulent');
-        // Reload claim details to show updated status
         this.loadClaimDetails(claimId);
+        this.loadAuditLogs(claimId);
       },
       error: (error: HttpErrorResponse) => {
-        console.error('Error marking as fraud:', error);
         this.handleActionError('Failed to mark claim as fraudulent', error);
       },
       complete: () => {
@@ -401,20 +406,18 @@ export class SiuClaimDetailsComponent implements OnInit {
     const claimId = this.claimId();
     if (!claimId || !this.canClearClaim()) return;
 
-    const notes = 'Claim cleared as legitimate after SIU investigation. No fraudulent activity detected.';
+    const notes = 'Claim cleared as legitimate after SIU investigation.';
 
     this.clearActionMessages();
     this.isClearingClaim.set(true);
 
     this.siuService.clearClaim(claimId, notes).subscribe({
       next: (response: SiuInvestigationActionResponse) => {
-        console.log('Claim cleared:', response);
         this.handleActionSuccess(response, 'Claim successfully cleared as legitimate');
-        // Reload claim details to show updated status
         this.loadClaimDetails(claimId);
+        this.loadAuditLogs(claimId);
       },
       error: (error: HttpErrorResponse) => {
-        console.error('Error clearing claim:', error);
         this.handleActionError('Failed to clear claim', error);
       },
       complete: () => {
@@ -429,9 +432,6 @@ export class SiuClaimDetailsComponent implements OnInit {
   private handleActionSuccess(response: SiuInvestigationActionResponse, userMessage: string): void {
     this.actionSuccess.set(true);
     this.actionMessage.set(userMessage);
-    console.log('Action response:', response);
-
-    // Auto-clear success message after 5 seconds
     setTimeout(() => {
       this.clearActionMessages();
     }, 5000);
@@ -455,31 +455,23 @@ export class SiuClaimDetailsComponent implements OnInit {
   }
 
   /**
-   * Get user-friendly error message from HTTP error
+   * Get user-friendly error message
    */
   private getApiErrorMessage(error: HttpErrorResponse): string {
-    if (error.status === 0) {
-      return 'Cannot connect to API server. Please ensure the backend is running.';
-    }
-    if (error.status === 403) {
-      return 'Access denied. SIU_INVESTIGATOR role required to access this claim.';
-    }
-    if (error.status === 404) {
-      return `Claim ${this.claimId()} not found. It may have been deleted or you may not have access.`;
-    }
-    if (error.status === 500) {
-      return 'Server error occurred while loading claim details. Please try again later.';
-    }
-    return error.error?.message || error.message || 'Failed to load claim details.';
+    if (error.status === 0) return 'Cannot connect to API server.';
+    if (error.status === 403) return 'Access denied. SIU role required.';
+    if (error.status === 404) return 'Claim not found.';
+    return error.error?.message || error.message || 'Error occurred.';
   }
 
   /**
-   * Retry loading claim details
+   * Retry loading
    */
   retryLoad(): void {
     const claimId = this.claimId();
     if (claimId) {
       this.loadClaimDetails(claimId);
+      this.loadAuditLogs(claimId);
     }
   }
 }

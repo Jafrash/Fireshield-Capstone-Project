@@ -5,7 +5,7 @@ import { environment } from '../../../../environments/environment';
 export interface PatternAnalysisResult {
   clusterFound: boolean;
   linkedClaims: string[];
-  riskLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+  fraudLevel: 'HIGH' | 'MEDIUM' | 'LOW';
   aiSynthesis: string;
 }
 
@@ -73,7 +73,7 @@ Look for linked claims sharing: identical customer names across different polici
 clustering of high-value amounts on the same date, or overlapping suspiciousIndicators.
 Determine if a "Coordinated Fraud Ring" pattern exists.
 Respond ONLY with valid JSON (no markdown, no code fences):
-{"clusterFound":true/false,"linkedClaims":["id1","id2"],"riskLevel":"HIGH"|"MEDIUM"|"LOW","aiSynthesis":"2-3 sentence professional summary."}`;
+{"clusterFound":true/false,"linkedClaims":["id1","id2"],"fraudLevel":"HIGH"|"MEDIUM"|"LOW","aiSynthesis":"2-3 sentence professional summary."}`;
 
       const rawOutput = await this.callGroq(systemPrompt, `Claims Data: ${JSON.stringify(claimDataPayload)}`);
 
@@ -88,17 +88,17 @@ Respond ONLY with valid JSON (no markdown, no code fences):
   }
 
   /**
-   * STEP 4: Risk Assessment Narrative
+   * STEP 4: Fraud Assessment Narrative
    */
-  async runRiskAssessment(claim: SiuClaim): Promise<string> {
+  async runFraudAssessment(claim: SiuClaim): Promise<string> {
     try {
       const systemPrompt = `You are a senior insurance claims SIU director using professional insurance lexicon.`;
-      const userContent = `Summarize the risk profile of this claim in exactly 2 sentences. 
+      const userContent = `Summarize the fraud profile of this claim in exactly 2 sentences. 
 Claim fraud score: ${claim.fraudScore}%. Suspicious indicators: ${JSON.stringify(claim.suspiciousIndicators)}.`;
 
       return await this.callGroq(systemPrompt, userContent);
     } catch (e) {
-      return 'Unable to generate AI risk synthesis at this time.';
+      return 'Unable to generate AI fraud synthesis at this time.';
     }
   }
 
@@ -130,7 +130,7 @@ Data: ${JSON.stringify(claims.map(c => ({ id: c.claimId, amount: c.claimAmount, 
       return {
         clusterFound: true,
         linkedClaims: duplicateNames.map(c => c.claimId),
-        riskLevel: 'HIGH',
+        fraudLevel: 'HIGH',
         aiSynthesis: `Heuristic Analysis: Detected ${duplicateNames.length} claims filed under identical customer names across different policies. This pattern is highly indicative of entity cloning or organized fraud ring activity.`
       };
     }
@@ -140,7 +140,7 @@ Data: ${JSON.stringify(claims.map(c => ({ id: c.claimId, amount: c.claimAmount, 
       return {
         clusterFound: true,
         linkedClaims: highValueClaims.map(c => c.claimId),
-        riskLevel: 'MEDIUM',
+        fraudLevel: 'MEDIUM',
         aiSynthesis: `Heuristic Analysis: Identified ${highValueClaims.length} high-value claims exceeding $300K. Statistically anomalous clustering of large-value claims warrants coordinated investigation to rule out inflated loss staging.`
       };
     }
@@ -148,7 +148,7 @@ Data: ${JSON.stringify(claims.map(c => ({ id: c.claimId, amount: c.claimAmount, 
     return {
       clusterFound: false,
       linkedClaims: [],
-      riskLevel: 'LOW',
+      fraudLevel: 'LOW',
       aiSynthesis: 'No cross-claim correlations or professional fraud ring patterns detected across the current active investigation pool. Claims appear to be isolated incidents.'
     };
   }

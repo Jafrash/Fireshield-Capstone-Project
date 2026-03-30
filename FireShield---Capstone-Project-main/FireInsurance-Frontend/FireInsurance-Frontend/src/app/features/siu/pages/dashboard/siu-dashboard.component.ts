@@ -41,7 +41,7 @@ export class SiuDashboardComponent implements OnInit {
   claims = computed(() => {
     let filteredClaims = this.allClaims();
 
-    // 1. Strict Triage Filter: Only show HIGH risk claims to the SIU investigator
+    // 1. Strict Triage Filter: Only show HIGH fraud score claims to the SIU investigator
     filteredClaims = filteredClaims.filter(claim =>
       claim.priority === 'HIGH' || (claim.fraudScore && claim.fraudScore >= 70)
     );
@@ -295,18 +295,18 @@ export class SiuDashboardComponent implements OnInit {
     }, 1500);
   }
 
-  async runRiskAssessment(): Promise<void> {
+  async runFraudAssessment(): Promise<void> {
     this.toolIcon.set('assessment');
-    this.toolMessage.set('Generating global risk distribution narrative via Gemini AI...');
+    this.toolMessage.set('Generating global fraud distribution narrative via Gemini AI...');
     this.showToolPopup.set(true);
     
-    // Choose the highest risk claim to synthesize for the demo
-    const highestRisk = [...this.claims()].sort((a,b) => b.fraudScore - a.fraudScore)[0];
+    // Choose the highest fraud score claim to synthesize for the demo
+    const highestFraudScoreClaim = [...this.claims()].sort((a,b) => b.fraudScore - a.fraudScore)[0];
     
-    if (highestRisk) {
-      const summary = await this.aiService.runRiskAssessment(highestRisk);
+    if (highestFraudScoreClaim) {
+      const summary = await this.aiService.runFraudAssessment(highestFraudScoreClaim);
       this.toolIcon.set('assessment');
-      this.toolMessage.set('AI Synthesis on ' + highestRisk.claimId + ': ' + summary);
+      this.toolMessage.set('AI Synthesis on ' + highestFraudScoreClaim.claimId + ': ' + summary);
     } else {
       this.toolMessage.set('No active claims available for AI Synthesis.');
     }

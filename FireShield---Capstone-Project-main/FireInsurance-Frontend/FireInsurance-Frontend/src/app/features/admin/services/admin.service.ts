@@ -384,4 +384,8 @@ export class AdminService {
   getClaimInspectionByClaimId(claimId: number): Observable<any> {
     return this.http.get<any>(`${this.apiUrl}/claim-inspections/claim/${claimId}`);
   }
+
+  getAllInspections(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/inspections`);
+  }
 }

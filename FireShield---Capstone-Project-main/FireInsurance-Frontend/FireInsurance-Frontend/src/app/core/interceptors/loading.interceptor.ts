@@ -23,12 +23,12 @@ export const loadingInterceptor: HttpInterceptorFn = (req, next) => {
   );
 
   // Also check for custom header to skip loading
-  const hasSkipHeader = req.headers.has('X-Skip-Loading');
+  const hasSkipHeader = req.headers.has('skipLoading') || req.headers.has('X-Skip-Loading');
 
   if (shouldSkip || hasSkipHeader) {
     // Remove custom header before sending to backend
     const modifiedReq = req.clone({
-      headers: req.headers.delete('X-Skip-Loading')
+      headers: req.headers.delete('skipLoading').delete('X-Skip-Loading')
     });
     return next(modifiedReq);
   }

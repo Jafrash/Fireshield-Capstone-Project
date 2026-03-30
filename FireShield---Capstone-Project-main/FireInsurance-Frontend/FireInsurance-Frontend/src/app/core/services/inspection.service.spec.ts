@@ -1,3 +1,10 @@
+import 'zone.js';
+import 'zone.js/testing';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach as vitestAfterEach } from 'vitest';
+vitestAfterEach(() => { getTestBed().resetTestingModule(); });
+import { getTestBed } from '@angular/core/testing';
+
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
